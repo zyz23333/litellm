@@ -319,6 +319,24 @@ class VolcEngineVideoConfig(BaseVideoConfig):
                 hidden[key] = response_data[key]
         return hidden
 
+    def _provider_content_reference_from_task(
+        self,
+        response_data: Dict[str, Any],
+    ) -> Dict[str, str]:
+        content = response_data.get("content") or {}
+        if not isinstance(content, dict):
+            return {}
+
+        provider_content_reference: Dict[str, str] = {}
+        for source_key, target_key in (
+            ("video_url", "video_url"),
+            ("last_frame_url", "last_frame_url"),
+        ):
+            value = content.get(source_key)
+            if isinstance(value, str) and value:
+                provider_content_reference[target_key] = value
+        return provider_content_reference
+
     def _video_object_from_task(
         self,
         response_data: Dict[str, Any],
@@ -334,6 +352,14 @@ class VolcEngineVideoConfig(BaseVideoConfig):
             "error": response_data.get("error"),
             "usage": response_data.get("usage"),
         }
+        provider_status = response_data.get("status")
+        if isinstance(provider_status, str) and provider_status:
+            video_data["provider_status"] = provider_status
+        provider_content_reference = self._provider_content_reference_from_task(
+            response_data
+        )
+        if provider_content_reference:
+            video_data["provider_content_reference"] = provider_content_reference
         if self._is_terminal_status(mapped_status):
             video_data["completed_at"] = response_data.get("updated_at")
         if response_data.get("duration") is not None:

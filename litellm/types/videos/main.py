@@ -21,6 +21,8 @@ class VideoObject(BaseModel):
     size: Optional[str] = None
     model: Optional[str] = None
     usage: Optional[Dict[str, Any]] = None
+    provider_status: Optional[str] = None
+    provider_content_reference: Optional[Dict[str, Any]] = None
     _hidden_params: Dict[str, Any] = {}
 
     def __contains__(self, key):
