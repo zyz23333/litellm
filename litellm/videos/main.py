@@ -27,6 +27,18 @@ from litellm.videos.utils import VideoGenerationRequestUtils
 llm_http_handler: BaseLLMHTTPHandler = BaseLLMHTTPHandler()
 
 
+def _get_custom_llm_provider_from_video_id(video_id: str) -> Optional[str]:
+    decoded = decode_video_id_with_provider(video_id)
+    custom_llm_provider = decoded.get("custom_llm_provider")
+    if custom_llm_provider:
+        return custom_llm_provider
+    if video_id.startswith("video:"):
+        parts = video_id.split(":", 3)
+        if len(parts) >= 4:
+            return parts[1]
+    return None
+
+
 ##### Video Generation #######################
 @client
 async def avideo_generation(
@@ -330,8 +342,9 @@ def video_content(
 
         # Try to decode provider from video_id if not explicitly provided
         if custom_llm_provider is None:
-            decoded = decode_video_id_with_provider(video_id)
-            custom_llm_provider = decoded.get("custom_llm_provider") or "openai"
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
 
         # get llm provider logic
         litellm_params = GenericLiteLLMParams(**kwargs)
@@ -429,8 +442,9 @@ async def avideo_content(
 
         # Try to decode provider from video_id if not explicitly provided
         if custom_llm_provider is None:
-            decoded = decode_video_id_with_provider(video_id)
-            custom_llm_provider = decoded.get("custom_llm_provider") or "openai"
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
 
         func = partial(
             video_content,
@@ -606,8 +620,9 @@ def video_remix(  # noqa: PLR0915
 
         # Try to decode provider from video_id if not explicitly provided
         if custom_llm_provider is None:
-            decoded = decode_video_id_with_provider(video_id)
-            custom_llm_provider = decoded.get("custom_llm_provider") or "openai"
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
 
         # get llm provider logic
         litellm_params = GenericLiteLLMParams(**kwargs)
@@ -1051,8 +1066,9 @@ def video_status(  # noqa: PLR0915
 
         # Try to decode provider from video_id if not explicitly provided
         if custom_llm_provider is None:
-            decoded = decode_video_id_with_provider(video_id)
-            custom_llm_provider = decoded.get("custom_llm_provider") or "openai"
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
 
         # get llm provider logic
         litellm_params = GenericLiteLLMParams(**kwargs)
@@ -1104,6 +1120,119 @@ def video_status(  # noqa: PLR0915
             client=kwargs.get("client"),
         )
 
+    except Exception as e:
+        raise litellm.exception_type(
+            model="",
+            custom_llm_provider=custom_llm_provider,
+            original_exception=e,
+            completion_kwargs=local_vars,
+            extra_kwargs=kwargs,
+        )
+
+
+@client
+def video_delete(
+    video_id: str,
+    timeout: Optional[float] = None,
+    custom_llm_provider: Optional[str] = None,
+    extra_headers: Optional[Dict[str, Any]] = None,
+    extra_query: Optional[Dict[str, Any]] = None,
+    extra_body: Optional[Dict[str, Any]] = None,
+    **kwargs,
+) -> Union[VideoObject, Coroutine[Any, Any, VideoObject]]:
+    """
+    Delete or cancel a video task.
+    """
+    local_vars = locals()
+    try:
+        litellm_logging_obj: LiteLLMLoggingObj = kwargs.get("litellm_logging_obj")  # type: ignore
+        litellm_call_id: Optional[str] = kwargs.get("litellm_call_id", None)
+        _is_async = kwargs.pop("async_call", False) is True
+
+        if custom_llm_provider is None:
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
+
+        litellm_params = GenericLiteLLMParams(**kwargs)
+        video_delete_provider_config = ProviderConfigManager.get_provider_video_config(
+            model=None,
+            provider=litellm.LlmProviders(custom_llm_provider),
+        )
+        if video_delete_provider_config is None:
+            raise ValueError(f"video delete is not supported for {custom_llm_provider}")
+
+        video_delete_request_params = {"video_id": video_id}
+        litellm_logging_obj.update_from_kwargs(
+            kwargs=kwargs,
+            model="",
+            user=kwargs.get("user"),
+            optional_params=dict(video_delete_request_params),
+            litellm_params={
+                "litellm_call_id": litellm_call_id,
+                **video_delete_request_params,
+            },
+            custom_llm_provider=custom_llm_provider,
+        )
+        litellm_logging_obj.call_type = CallTypes.video_delete.value
+
+        return base_llm_http_handler.video_delete_handler(
+            video_id=video_id,
+            video_delete_provider_config=video_delete_provider_config,
+            custom_llm_provider=custom_llm_provider,
+            litellm_params=litellm_params,
+            logging_obj=litellm_logging_obj,
+            extra_headers=extra_headers,
+            timeout=timeout or DEFAULT_REQUEST_TIMEOUT,
+            _is_async=_is_async,
+            client=kwargs.get("client"),
+        )
+    except Exception as e:
+        raise litellm.exception_type(
+            model="",
+            custom_llm_provider=custom_llm_provider,
+            original_exception=e,
+            completion_kwargs=local_vars,
+            extra_kwargs=kwargs,
+        )
+
+
+@client
+async def avideo_delete(
+    video_id: str,
+    timeout: Optional[float] = None,
+    custom_llm_provider: Optional[str] = None,
+    extra_headers: Optional[Dict[str, Any]] = None,
+    extra_query: Optional[Dict[str, Any]] = None,
+    extra_body: Optional[Dict[str, Any]] = None,
+    **kwargs,
+) -> VideoObject:
+    """
+    Asynchronously delete or cancel a video task.
+    """
+    local_vars = locals()
+    try:
+        loop = asyncio.get_event_loop()
+        kwargs["async_call"] = True
+        if custom_llm_provider is None:
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
+        func = partial(
+            video_delete,
+            video_id=video_id,
+            timeout=timeout,
+            custom_llm_provider=custom_llm_provider,
+            extra_headers=extra_headers,
+            extra_query=extra_query,
+            extra_body=extra_body,
+            **kwargs,
+        )
+        ctx = contextvars.copy_context()
+        init_response = await loop.run_in_executor(None, partial(ctx.run, func))
+        return (
+            await init_response if asyncio.iscoroutine(init_response) else init_response
+        )
     except Exception as e:
         raise litellm.exception_type(
             model="",
@@ -1457,8 +1586,9 @@ def video_edit(
             return VideoObject(**mock_response)
 
         if custom_llm_provider is None:
-            decoded = decode_video_id_with_provider(video_id)
-            custom_llm_provider = decoded.get("custom_llm_provider") or "openai"
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
 
         litellm_params = GenericLiteLLMParams(**kwargs)
 
@@ -1592,8 +1722,9 @@ def video_extension(
             return VideoObject(**mock_response)
 
         if custom_llm_provider is None:
-            decoded = decode_video_id_with_provider(video_id)
-            custom_llm_provider = decoded.get("custom_llm_provider") or "openai"
+            custom_llm_provider = (
+                _get_custom_llm_provider_from_video_id(video_id) or "openai"
+            )
 
         litellm_params = GenericLiteLLMParams(**kwargs)
 

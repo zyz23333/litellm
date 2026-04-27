@@ -5929,6 +5929,18 @@ class BaseLLMHTTPHandler:
                 )
 
             # Transform the response using the provider config
+            variant_transform = getattr(
+                video_content_provider_config,
+                "transform_video_content_response_with_variant",
+                None,
+            )
+            if callable(variant_transform):
+                return variant_transform(
+                    raw_response=response,
+                    logging_obj=logging_obj,
+                    variant=variant,
+                )
+
             return video_content_provider_config.transform_video_content_response(
                 raw_response=response,
                 logging_obj=logging_obj,
@@ -6007,6 +6019,19 @@ class BaseLLMHTTPHandler:
                 )
 
             # Transform the response using the provider config
+            async_variant_transform = getattr(
+                video_content_provider_config,
+                "async_transform_video_content_response_with_variant",
+                None,
+            )
+            if callable(async_variant_transform):
+                return await async_variant_transform(
+                    raw_response=response,
+                    logging_obj=logging_obj,
+                    variant=variant,
+                    async_httpx_client=async_httpx_client,
+                )
+
             return await video_content_provider_config.async_transform_video_content_response(
                 raw_response=response,
                 logging_obj=logging_obj,
@@ -6945,6 +6970,77 @@ class BaseLLMHTTPHandler:
                 provider_config=video_list_provider_config,
             )
 
+    def video_delete_handler(
+        self,
+        video_id: str,
+        video_delete_provider_config: BaseVideoConfig,
+        custom_llm_provider: str,
+        litellm_params,
+        logging_obj,
+        extra_headers: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        client=None,
+        api_key: Optional[str] = None,
+        _is_async: bool = False,
+    ):
+        """
+        Handle video delete requests.
+        """
+        if _is_async:
+            return self.async_video_delete_handler(
+                video_id=video_id,
+                video_delete_provider_config=video_delete_provider_config,
+                custom_llm_provider=custom_llm_provider,
+                litellm_params=litellm_params,
+                logging_obj=logging_obj,
+                extra_headers=extra_headers,
+                timeout=timeout,
+                client=client,
+                api_key=api_key,
+            )
+
+        sync_httpx_client = (
+            client
+            if isinstance(client, HTTPHandler)
+            else _get_httpx_client(
+                params={"ssl_verify": litellm_params.get("ssl_verify", None)}
+            )
+        )
+        headers = video_delete_provider_config.validate_environment(
+            api_key=api_key or litellm_params.get("api_key", None),
+            headers=extra_headers or {},
+            model="",
+            litellm_params=litellm_params,
+        )
+        if extra_headers:
+            headers.update(extra_headers)
+        api_base = video_delete_provider_config.get_complete_url(
+            model="",
+            api_base=litellm_params.get("api_base", None),
+            litellm_params=dict(litellm_params),
+        )
+        url, data = video_delete_provider_config.transform_video_delete_request(
+            video_id=video_id,
+            api_base=api_base,
+            litellm_params=litellm_params,
+            headers=headers,
+        )
+        logging_obj.pre_call(
+            input="",
+            api_key="",
+            additional_args={"api_base": url, "headers": headers, "video_id": video_id},
+        )
+        try:
+            response = sync_httpx_client.delete(
+                url=url, headers=headers, timeout=timeout
+            )
+            return video_delete_provider_config.transform_video_delete_response(
+                raw_response=response,
+                logging_obj=logging_obj,
+            )
+        except Exception as e:
+            raise self._handle_error(e=e, provider_config=video_delete_provider_config)
+
     async def async_video_delete_handler(
         self,
         video_id: str,
@@ -6972,6 +7068,7 @@ class BaseLLMHTTPHandler:
             api_key=api_key,
             headers=extra_headers or {},
             model="",
+            litellm_params=litellm_params,
         )
 
         if extra_headers:

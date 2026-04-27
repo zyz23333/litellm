@@ -1,6 +1,6 @@
 #### Video Endpoints #####
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import orjson
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
@@ -27,6 +27,19 @@ from litellm.types.videos.utils import (
 )
 
 router = APIRouter()
+
+# The content handler returns raw bytes only, so the proxy sets best-effort
+# download metadata for known image variants here.
+IMAGE_CONTENT_VARIANTS = {"last_frame", "thumbnail", "spritesheet"}
+
+
+def _get_video_content_response_metadata(
+    video_id: str,
+    variant: Optional[str],
+) -> Tuple[str, str]:
+    if variant in IMAGE_CONTENT_VARIANTS:
+        return "image/jpeg", f"video_{video_id}_{variant}.jpg"
+    return "video/mp4", f"video_{video_id}.mp4"
 
 
 @router.post(
@@ -300,6 +313,97 @@ async def video_status(
         )
 
 
+@router.delete(
+    "/v1/videos/{video_id}",
+    dependencies=[Depends(user_api_key_auth)],
+    response_class=ORJSONResponse,
+    tags=["videos"],
+)
+@router.delete(
+    "/videos/{video_id}",
+    dependencies=[Depends(user_api_key_auth)],
+    response_class=ORJSONResponse,
+    tags=["videos"],
+)
+async def video_delete(
+    video_id: str,
+    request: Request,
+    fastapi_response: Response,
+    user_api_key_dict: UserAPIKeyAuth = Depends(user_api_key_auth),
+):
+    """
+    Video delete endpoint for cancelling or deleting video tasks.
+    """
+    from litellm.proxy.proxy_server import (
+        general_settings,
+        llm_router,
+        proxy_config,
+        proxy_logging_obj,
+        select_data_generator,
+        user_api_base,
+        user_max_tokens,
+        user_model,
+        user_request_timeout,
+        user_temperature,
+        version,
+    )
+
+    data: Dict[str, Any] = {"video_id": video_id}
+
+    decoded = decode_video_id_with_provider(video_id)
+    provider_from_id = decoded.get("custom_llm_provider")
+    model_id_from_decoded = decoded.get("model_id")
+    if not provider_from_id and video_id.startswith("video:"):
+        parts = video_id.split(":", 3)
+        if len(parts) >= 4:
+            provider_from_id = parts[1]
+            model_id_from_decoded = parts[2]
+
+    custom_llm_provider = (
+        get_custom_llm_provider_from_request_headers(request=request)
+        or get_custom_llm_provider_from_request_query(request=request)
+        or await get_custom_llm_provider_from_request_body(request=request)
+        or provider_from_id
+        or "openai"
+    )
+    data["custom_llm_provider"] = custom_llm_provider
+
+    if model_id_from_decoded and llm_router:
+        resolved_model = llm_router.resolve_model_name_from_model_id(
+            model_id_from_decoded
+        )
+        if resolved_model:
+            data["model"] = resolved_model
+
+    processor = ProxyBaseLLMRequestProcessing(data=data)
+    try:
+        return await processor.base_process_llm_request(
+            request=request,
+            fastapi_response=fastapi_response,
+            user_api_key_dict=user_api_key_dict,
+            route_type="avideo_delete",
+            proxy_logging_obj=proxy_logging_obj,
+            llm_router=llm_router,
+            general_settings=general_settings,
+            proxy_config=proxy_config,
+            select_data_generator=select_data_generator,
+            model=None,
+            user_model=user_model,
+            user_temperature=user_temperature,
+            user_request_timeout=user_request_timeout,
+            user_max_tokens=user_max_tokens,
+            user_api_base=user_api_base,
+            version=version,
+        )
+    except Exception as e:
+        raise await processor._handle_llm_api_exception(
+            e=e,
+            user_api_key_dict=user_api_key_dict,
+            proxy_logging_obj=proxy_logging_obj,
+            version=version,
+        )
+
+
 @router.get(
     "/v1/videos/{video_id}/content",
     dependencies=[Depends(user_api_key_auth)],
@@ -347,6 +451,9 @@ async def video_content(
 
     # Create data with video_id
     data: Dict[str, Any] = {"video_id": video_id}
+    variant = request.query_params.get("variant")
+    if variant is not None:
+        data["variant"] = variant
 
     decoded = decode_video_id_with_provider(video_id)
     provider_from_id = decoded.get("custom_llm_provider")
@@ -392,13 +499,16 @@ async def video_content(
             version=version,
         )
 
-        # Return raw video bytes with proper content type
+        media_type, filename = _get_video_content_response_metadata(
+            video_id=video_id,
+            variant=data.get("variant"),
+        )
+
+        # Return raw content bytes with the expected content type
         return Response(
             content=video_bytes,
-            media_type="video/mp4",
-            headers={
-                "Content-Disposition": f"attachment; filename=video_{video_id}.mp4"
-            },
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     except Exception as e:
         raise await processor._handle_llm_api_exception(

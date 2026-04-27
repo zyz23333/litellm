@@ -2168,6 +2168,7 @@
         "responses": true,
         "embeddings": false,
         "image_generations": false,
+        "video_generations": true,
         "audio_transcriptions": false,
         "audio_speech": false,
         "moderations": false,

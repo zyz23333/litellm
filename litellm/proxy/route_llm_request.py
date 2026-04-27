@@ -55,6 +55,7 @@ ROUTE_ENDPOINT_MAPPING = {
     "avideo_list": "/videos",
     "avideo_status": "/videos/{video_id}",
     "avideo_content": "/videos/{video_id}/content",
+    "avideo_delete": "/videos/{video_id}",
     "avideo_remix": "/videos/{video_id}/remix",
     "avideo_create_character": "/videos/characters",
     "avideo_get_character": "/videos/characters/{character_id}",
@@ -275,6 +276,7 @@ async def route_request(  # noqa: PLR0915 - Complex routing function, refactorin
         "avideo_list",
         "avideo_status",
         "avideo_content",
+        "avideo_delete",
         "avideo_remix",
         "avideo_create_character",
         "avideo_get_character",
@@ -449,6 +451,7 @@ async def route_request(  # noqa: PLR0915 - Complex routing function, refactorin
             "avideo_list",
             "avideo_status",
             "avideo_content",
+            "avideo_delete",
             "avideo_remix",
             "avideo_create_character",
             "avideo_get_character",
@@ -532,6 +535,7 @@ async def route_request(  # noqa: PLR0915 - Complex routing function, refactorin
             elif route_type in [
                 "avideo_status",
                 "avideo_content",
+                "avideo_delete",
                 "avideo_remix",
                 "avideo_create_character",
                 "avideo_get_character",
@@ -558,6 +562,18 @@ async def route_request(  # noqa: PLR0915 - Complex routing function, refactorin
                 # Fall through to raise exception below if result is None
 
     elif user_model is not None:
+        return getattr(litellm, f"{route_type}")(**data)
+    elif route_type in [
+        "avideo_list",
+        "avideo_status",
+        "avideo_content",
+        "avideo_delete",
+        "avideo_remix",
+        "avideo_create_character",
+        "avideo_get_character",
+        "avideo_edit",
+        "avideo_extension",
+    ] and (data.get("model") is None or data.get("model") == ""):
         return getattr(litellm, f"{route_type}")(**data)
     elif route_type == "allm_passthrough_route":
         return getattr(litellm, f"{route_type}")(**data)

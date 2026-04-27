@@ -1119,6 +1119,7 @@ class Router:
         from litellm.videos import (
             avideo_content,
             avideo_create_character,
+            avideo_delete,
             avideo_edit,
             avideo_extension,
             avideo_generation,
@@ -1128,6 +1129,7 @@ class Router:
             avideo_status,
             video_content,
             video_create_character,
+            video_delete,
             video_edit,
             video_extension,
             video_generation,
@@ -1156,6 +1158,12 @@ class Router:
         )
         self.video_content = self.factory_function(
             video_content, call_type="video_content"
+        )
+        self.avideo_delete = self.factory_function(
+            avideo_delete, call_type="avideo_delete"
+        )
+        self.video_delete = self.factory_function(
+            video_delete, call_type="video_delete"
         )
         self.avideo_remix = self.factory_function(
             avideo_remix, call_type="avideo_remix"
@@ -4959,6 +4967,8 @@ class Router:
             "video_status",
             "avideo_content",
             "video_content",
+            "avideo_delete",
+            "video_delete",
             "avideo_remix",
             "video_remix",
             "avideo_create_character",
@@ -5019,6 +5029,7 @@ class Router:
             "video_list",
             "video_status",
             "video_content",
+            "video_delete",
             "video_remix",
             "create_container",
             "list_containers",
@@ -5135,6 +5146,7 @@ class Router:
                 "avideo_list",
                 "avideo_status",
                 "avideo_content",
+                "avideo_delete",
                 "avideo_remix",
                 "avideo_create_character",
                 "avideo_get_character",
